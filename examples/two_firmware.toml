@@ -1,0 +1,65 @@
+# A federation described in TOML (S33).
+#
+# The same experiment as examples/motor_and_sensor.py. Run it with:
+#
+#     tempo-run examples/two_firmware.toml --stats
+#     tempo-run examples/two_firmware.toml --explain
+#     tempo-run examples/two_firmware.toml --trace run.trace
+#     tempo-trace dump run.trace
+#
+# A misspelled key here is an error, not a silently ignored line: a
+# configuration mistake should fail during setup, never during a run (S14).
+
+[simulation]
+end_time = "10ms"
+
+[scheduler]
+policy = "conservative"
+quantum = "1ms"
+# Delay applied to a connection that does not declare one. Defaults to the
+# quantum, which is what keeps fixed-window conservative scheduling sound.
+default_delay = "1ms"
+max_microsteps = 100
+
+[trace]
+enabled = true
+capacity = 65536
+
+[[participants]]
+name = "firmware_a"
+type = "mock"
+script = "3ms:emit_sync 0 0.70; 7ms:emit_sync 0 0.35"
+outputs = { motor_command = "float64" }
+
+[[participants]]
+name = "world"
+type = "mock"
+echo = true
+gain = 3.2
+inputs = { motor_command = "float64" }
+outputs = { angular_velocity = "float64" }
+
+[[participants]]
+name = "firmware_b"
+type = "mock"
+echo = true
+inputs = { gyro = "float64" }
+outputs = { observed = "float64" }
+
+[[connections]]
+from = "firmware_a.motor_command"
+to = "world.motor_command"
+delay = "500us"
+
+[[connections]]
+from = "world.angular_velocity"
+to = "firmware_b.gyro"
+delay = "500us"
+
+# Record only what an analysis actually asked for. Without any subscriptions
+# the compiler records the scheduler's own decisions and nothing else (S21).
+[[subscriptions]]
+event = "port_write"
+
+[[subscriptions]]
+event = "route_deliver"
